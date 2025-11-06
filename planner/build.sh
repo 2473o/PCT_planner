@@ -1,15 +1,16 @@
 #!/bin/bash
 
 ROOT_DIR=$(cd $(dirname "$0"); pwd)
-# echo "ROOT_DIR: ${ROOT_DIR}"
+echo "ROOT_DIR: ${ROOT_DIR}"
 
 cd lib
 
-# rm -rf build
+rm -rf build
 mkdir build
 
 cd build
-cmake ../ -DCMAKE_BUILD_TYPE=Release
+# cmake ../ -DCMAKE_BUILD_TYPE=Release
+cmake ../ -DCMAKE_BUILD_TYPE=Debug
 make -j6
 cp ./src/a_star/a_star*.so ../
 cp ./src/trajectory_optimization/traj_opt*.so ../
@@ -19,7 +20,7 @@ cp ./src/common/smoothing/libcommon_smoothing.so ../
 cd ..
 
 # # optional
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${ROOT_DIR}/lib/3rdparty/gtsam-4.1.1/install/lib
+# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${ROOT_DIR}/lib/3rdparty/gtsam-4.1.1/install/lib
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${ROOT_DIR}/lib/build/src/common/smoothing
 export PYTHONPATH=$PYTHONPATH:${ROOT_DIR}/lib
 # pybind11-stubgen -o ./ a_star

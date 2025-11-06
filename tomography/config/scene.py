@@ -1,5 +1,8 @@
+from typing import Optional
+
+
 class ScenePCD():
-    file_name = None
+    file_name: Optional[str] = None
 
 
 class SceneMap():
@@ -19,3 +22,9 @@ class SceneTrav():
 
     safe_margin = 0.4
     inflation = 0.2
+
+
+class Scene():
+    pcd: ScenePCD = ScenePCD()
+    map: SceneMap = SceneMap()
+    trav: SceneTrav = SceneTrav()

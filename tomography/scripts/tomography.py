@@ -1,27 +1,47 @@
 #!/usr/bin/python3
+import argparse
 import os
 import sys
 import time
 import pickle
+from typing import Optional
 import numpy as np
 import open3d as o3d
+from typing import Optional
   
-import rospy
+import rclpy
+from rclpy.node import Node
+from rclpy.clock import Clock
+from rclpy.time import Time
+from rclpy.qos import QoSProfile, QoSHistoryPolicy, QoSReliabilityPolicy, QoSDurabilityPolicy
+
 from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2
-import sensor_msgs.point_cloud2 as pc2
+import sensor_msgs_py.point_cloud2 as pc2
+
 
 from tomogram import Tomogram
 
 sys.path.append('../')
 from config import POINT_FIELDS_XYZI, GRID_POINTS_XYZI
 from config import Config
+from config import scene
 
 rsg_root = os.path.dirname(os.path.abspath(__file__)) + '/../..'
 
 
-class Tomography(object):
-    def __init__(self, cfg, scene_cfg):
+class Tomography(Node):
+    def __init__(self, cfg: Config, scene_cfg: scene.Scene):
+        super().__init__('pointcloud_tomography')
+
+        self.cfg = cfg
+
+        self.qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
+        )
+
         self.export_dir = rsg_root + cfg.map.export_dir
         self.pcd_file = scene_cfg.pcd.file_name
         self.resolution = scene_cfg.map.resolution
@@ -30,37 +50,48 @@ class Tomography(object):
 
         self.center = np.zeros(2, dtype=np.float32)
         self.tomogram = Tomogram(scene_cfg)
-        points = self.loadPCD(self.pcd_file)
+
+        print(scene_cfg.pcd.file_name)
+        if self.pcd_file is None:
+            raise ValueError("PCD file name is not specified.")
+        else:
+            points = self.loadPCD()
+
 
         # Process
         self.process(points)
 
     def initROS(self):
-        self.map_frame = cfg.ros.map_frame
+        self.map_frame = self.cfg.ros.map_frame
+        pointcloud_topic = self.cfg.ros.pointcloud_topic
+        layer_G_topic = self.cfg.ros.layer_G_topic
+        layer_C_topic = self.cfg.ros.layer_C_topic
 
-        pointcloud_topic = cfg.ros.pointcloud_topic
-        self.pointcloud_pub = rospy.Publisher(pointcloud_topic, PointCloud2, latch=True, queue_size=1)
+
+        self.pointcloud_pub = self.create_publisher(PointCloud2, pointcloud_topic, self.qos)
 
         self.layer_G_pub_list = []
         self.layer_C_pub_list = []
-        layer_G_topic = cfg.ros.layer_G_topic
-        layer_C_topic = cfg.ros.layer_C_topic
+
         for i in range(self.n_slice):
-            layer_G_pub = rospy.Publisher(layer_G_topic + str(i), PointCloud2, latch=True, queue_size=1)
+            layer_G_pub = self.create_publisher(PointCloud2, layer_G_topic + str(i), self.qos)
             self.layer_G_pub_list.append(layer_G_pub)
-            layer_C_pub = rospy.Publisher(layer_C_topic + str(i), PointCloud2, latch=True, queue_size=1)
+            layer_C_pub = self.create_publisher(PointCloud2, layer_C_topic + str(i), self.qos)
             self.layer_C_pub_list.append(layer_C_pub)
 
         tomogram_topic = cfg.ros.tomogram_topic
-        self.tomogram_pub = rospy.Publisher(tomogram_topic, PointCloud2, latch=True, queue_size=1)
+        self.tomogram_pub = self.create_publisher(PointCloud2, tomogram_topic, self.qos)
 
-    def loadPCD(self, pcd_file):
-        pcd = o3d.io.read_point_cloud(rsg_root + "/rsc/pcd/" + pcd_file)
+
+    def loadPCD(self):
+        pcd = o3d.io.read_point_cloud(f"{rsg_root}/rsc/pcd/{self.pcd_file}")
         points = np.asarray(pcd.points).astype(np.float32)
-        rospy.loginfo("PCD points: %d", points.shape[0])
+
+        self.get_logger().info(f"PCD points: {points.shape[0]}")
 
         if points.shape[1] > 3:
             points = points[:, :3]
+        
         self.points_max = np.max(points, axis=0)
         self.points_min = np.min(points, axis=0)           
         self.points_min[-1] = self.ground_h
@@ -71,10 +102,10 @@ class Tomography(object):
         self.slice_h0 = self.points_min[-1] + self.slice_dh
         self.tomogram.initMappingEnv(self.center, self.map_dim_x, self.map_dim_y, n_slice_init, self.slice_h0)
 
-        rospy.loginfo("Map center: [%.2f, %.2f]", self.center[0], self.center[1])
-        rospy.loginfo("Dim_x: %d", self.map_dim_x)
-        rospy.loginfo("Dim_y: %d", self.map_dim_y)
-        rospy.loginfo("Num slices init: %d", n_slice_init)
+        self.get_logger().info(f"Map center: [{self.center[0]:.2f}, {self.center[1]:.2f}]", )
+        self.get_logger().info(f"Dim_x: {self.map_dim_x}")
+        self.get_logger().info(f"Dim_y: {self.map_dim_y}")
+        self.get_logger().info(f"Num slices init: {n_slice_init}")
 
         self.VISPROTO_I, self.VISPROTO_P = \
             GRID_POINTS_XYZI(self.resolution, self.map_dim_x, self.map_dim_y)
@@ -104,16 +135,18 @@ class Tomography(object):
                 t_simp += t_gpu['t_simp']
                 t_all += (time.time() - t_start) * 1e3
 
-        rospy.loginfo("Num slices simp: %d", layers_g.shape[0])
-        rospy.loginfo("Num repeats (for benchmarking only): %d", n_repeat)
-        rospy.loginfo(" -- avg t_map  (ms): %f", t_map / n_repeat)
-        rospy.loginfo(" -- avg t_trav (ms): %f", t_trav / n_repeat)
-        rospy.loginfo(" -- avg t_simp (ms): %f", t_simp / n_repeat)
-        rospy.loginfo(" -- avg t_all  (ms): %f", t_all / n_repeat)
+        self.get_logger().info(f"Num slices simp: {layers_g.shape[0]}")
+        self.get_logger().info(f"Num repeats (for benchmarking only): {n_repeat}")
+        self.get_logger().info(f" -- avg t_map  (ms): {t_map / n_repeat}")
+        self.get_logger().info(f" -- avg t_trav (ms): {t_trav / n_repeat}")
+        self.get_logger().info(f" -- avg t_simp (ms): {t_simp / n_repeat}")
+        self.get_logger().info(f" -- avg t_all  (ms): {t_all / n_repeat}")
 
         self.n_slice = layers_g.shape[0]
-
+        
+        assert self.pcd_file is not None
         map_file = os.path.splitext(self.pcd_file)[0]
+
         self.exportTomogram(np.stack((layers_t, trav_grad_x, trav_grad_y, layers_g, layers_c)), map_file)
 
         self.initROS()
@@ -134,11 +167,12 @@ class Tomography(object):
         with open(self.export_dir + file_name, 'wb') as handle:
             pickle.dump(data_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        rospy.loginfo("Tomogram exported: %s", file_name)
+        self.get_logger().info(f"Tomogram exported: {file_name}")
 
     def publishPoints(self, points):
         header = Header()
-        header.stamp = rospy.Time.now()
+        header.stamp = self.get_clock().now().to_msg()
+
         header.frame_id = self.map_frame
 
         point_msg = pc2.create_cloud_xyz32(header, points)
@@ -146,8 +180,8 @@ class Tomography(object):
 
     def publishLayers(self, pub_list, layers, color=None):
         header = Header()
-        header.seq = 0
-        header.stamp = rospy.Time.now()
+        header.stamp = self.get_clock().now().to_msg()
+
         header.frame_id = self.map_frame
 
         layer_points = self.VISPROTO_P.copy()
@@ -166,8 +200,7 @@ class Tomography(object):
 
     def publishTomogram(self, layers_g, layers_t):
         header = Header()
-        header.seq = 0
-        header.stamp = rospy.Time.now()
+        header.stamp = self.get_clock().now().to_msg()
         header.frame_id = self.map_frame
 
         n_slice = layers_g.shape[0]
@@ -176,7 +209,8 @@ class Tomography(object):
         layer_points = self.VISPROTO_P.copy()
         layer_points[:, :2] += self.center
 
-        global_points = None
+        global_points: Optional[np.ndarray] = None
+        
         for i in range(n_slice - 1):
             mask_h = (vis_g[i + 1] - vis_g[i]) < self.slice_dh
             vis_g[i, mask_h] = np.nan
@@ -192,6 +226,8 @@ class Tomography(object):
         layer_points[:, 2] = vis_g[-1, self.VISPROTO_I[:, 0], self.VISPROTO_I[:, 1]]
         layer_points[:, 3] = vis_t[-1, self.VISPROTO_I[:, 0], self.VISPROTO_I[:, 1]]
         valid_points = layer_points[~np.isnan(layer_points).any(axis=-1)]
+
+        assert global_points is not None
         global_points = np.concatenate((global_points, valid_points), axis=0)
         
         points_msg = pc2.create_cloud(header, POINT_FIELDS_XYZI, global_points)
@@ -199,17 +235,29 @@ class Tomography(object):
 
 
 if __name__ == '__main__':
-    import argparse
+    import importlib
 
+    rclpy.init()
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scene', type=str, help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\']')
+    parser.add_argument('--scene', type=str, help="Scene name: ['Spiral', 'Building', 'Plaza']")
     args = parser.parse_args()
 
+    scene_name: str = args.scene.lower()
+    module_name = f"config.scene_{scene_name}"
+    class_name = f"Scene{args.scene.capitalize()}"
+
+    scene_module = importlib.import_module(module_name)
+    scene_cfg = getattr(scene_module, class_name)()
+
     cfg = Config()
-    scene_cfg = getattr(__import__('config'), 'Scene' + args.scene)
+    
+    node = Tomography(cfg, scene_cfg)
 
-    rospy.init_node('pointcloud_tomography', anonymous=True)
+    try:
+        rclpy.spin(node)
 
-    mapping = Tomography(cfg, scene_cfg)
-
-    rospy.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

@@ -76,6 +76,7 @@ class TomogramPlanner(object):
         self.planner = ele_planner.OfflineElePlanner(
             max_heading_rate=self.max_heading_rate, use_quintic=self.use_quintic
         )
+        
         self.planner.init_map(
             20, 15, self.resolution, self.n_slice, 0.2,
             trav.reshape(-1, trav.shape[-1]).astype(np.double),

@@ -1,5 +1,15 @@
 # PCT Planner
 
+## Others
+
+> 这是用于适配ROS2 humble的fork
+
+测试环境: `Ubuntu 22.04` + `ROS2 humble` + `CUDA 12.8`
+
+修改的diff: `https://github.com/byangw/PCT_planner/commit/520e1f412435074b90c594dc4542363ee014f8dc#diff-8944042aa8735fba5fc971b5a579916e45d769fdf2984ddd5c66db2eeb8f0044`
+
+其他内容参照原文
+
 ## Overview
 
 This is an implementation of paper **Efficient Global Navigational Planning in 3-D Structures Based on Point Cloud Tomography** (accepted by TMECH).
@@ -93,3 +103,4 @@ python3 plan.py --scene Spiral
 The source code is released under [GPLv2](http://www.gnu.org/licenses/) license.
 
 For commercial use, please contact Bowen Yang [byangar@connect.ust.hk](mailto:byangar@connect.ust.hk).
+
