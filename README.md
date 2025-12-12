@@ -10,6 +10,17 @@
 
 其他内容参照原文
 
+## Alex Change log
+
+- 2025-11-06: feat: ROS2 humble.
+- 2025-12-13: feat: ROS2 package, update dependencies.
+  详细见: [build_3rdparty.sh](./build_3rdparty.sh)
+  3rdparty libraries:
+      - cJSON-1.7.19
+      - gtsam-4.2
+      - osqp-1.0.0  
+      - pcl-1.15.1
+
 ## Overview
 
 This is an implementation of paper **Efficient Global Navigational Planning in 3-D Structures Based on Point Cloud Tomography** (accepted by TMECH).

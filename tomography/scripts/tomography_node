@@ -1,0 +1,6 @@
+#!/usr/bin/python3
+import sys
+from tomography.tomography_node import main
+
+if __name__ == '__main__':
+    sys.exit(main())

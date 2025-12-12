@@ -6,7 +6,12 @@
 *.pyc
 *.pickle
 *.so
+*.log
 
 __pycache__/
 build/
 install/
+_pct_planner/
+.vscode/
+log/
+_tomography/
