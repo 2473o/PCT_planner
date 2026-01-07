@@ -6,20 +6,18 @@
 
 测试环境: `Ubuntu 22.04` + `ROS2 humble` + `CUDA 12.8`
 
-修改的diff: `https://github.com/byangw/PCT_planner/commit/520e1f412435074b90c594dc4542363ee014f8dc#diff-8944042aa8735fba5fc971b5a579916e45d769fdf2984ddd5c66db2eeb8f0044`
-
-其他内容参照原文
-
 ## Alex Change log
 
 - 2025-11-06: feat: ROS2 humble.
+
 - 2025-12-13: feat: ROS2 package, update dependencies.
-  详细见: [build_3rdparty.sh](./build_3rdparty.sh)
-  3rdparty libraries:
-      - cJSON-1.7.19
-      - gtsam-4.2
-      - osqp-1.0.0  
-      - pcl-1.15.1
+  For detials: [build_3rdparty.sh](./build_3rdparty.sh)
+
+- 3rdparty libraries:
+  - cJSON-1.7.19
+  - gtsam-4.2
+  - osqp-1.0.0
+  - pcl-1.15.1
 
 ## Overview
 
