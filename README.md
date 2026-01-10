@@ -26,7 +26,7 @@ It provides a highly efficient and extensible global navigation framework based 
 
 **Demonstrations**: [pct_planner](https://byangw.github.io/projects/tmech2024/)
 
-![demo](rsc/docs/demo.png)
+![demo](tomogram_rsc/docs/demo.png)
 
 ## Citing
 
